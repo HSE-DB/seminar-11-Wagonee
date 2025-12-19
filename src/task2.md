@@ -1,45 +1,52 @@
-## Задание 2
+# Задание 2
 
 1. Удалите старую базу данных, если есть:
+
     ```shell
     docker compose down
     ```
 
 2. Поднимите базу данных из src/docker-compose.yml:
+
     ```shell
     docker compose down && docker compose up -d
     ```
 
 3. Обновите статистику:
+
     ```sql
     ANALYZE t_books;
     ```
 
 4. Создайте полнотекстовый индекс:
+
     ```sql
     CREATE INDEX t_books_fts_idx ON t_books 
     USING GIN (to_tsvector('english', title));
     ```
 
 5. Найдите книги, содержащие слово 'expert':
+
     ```sql
     EXPLAIN ANALYZE
     SELECT * FROM t_books 
     WHERE to_tsvector('english', title) @@ to_tsquery('english', 'expert');
     ```
-    
+
     *План выполнения:*
-    [Вставьте план выполнения]
-    
+    ![alt text](image-6.png)
+
     *Объясните результат:*
-    [Ваше объяснение]
+    Полнотекстовый векторный индекс ожидаемо сработал.
 
 6. Удалите индекс:
+
     ```sql
     DROP INDEX t_books_fts_idx;
     ```
 
 7. Создайте таблицу lookup:
+
     ```sql
     CREATE TABLE t_lookup (
          item_key VARCHAR(10) NOT NULL,
@@ -48,12 +55,14 @@
     ```
 
 8. Добавьте первичный ключ:
+
     ```sql
     ALTER TABLE t_lookup 
     ADD CONSTRAINT t_lookup_pk PRIMARY KEY (item_key);
     ```
 
 9. Заполните данными:
+
     ```sql
     INSERT INTO t_lookup 
     SELECT 
@@ -62,6 +71,7 @@
     ```
 
 10. Создайте кластеризованную таблицу:
+
      ```sql
      CREATE TABLE t_lookup_clustered (
           item_key VARCHAR(10) PRIMARY KEY,
@@ -70,6 +80,7 @@
      ```
 
 11. Заполните её теми же данными:
+
      ```sql
      INSERT INTO t_lookup_clustered 
      SELECT * FROM t_lookup;
@@ -78,71 +89,80 @@
      ```
 
 12. Обновите статистику:
+
      ```sql
      ANALYZE t_lookup;
      ANALYZE t_lookup_clustered;
      ```
 
 13. Выполните поиск по ключу в обычной таблице:
+
      ```sql
      EXPLAIN ANALYZE
      SELECT * FROM t_lookup WHERE item_key = '0000000455';
      ```
-     
+
      *План выполнения:*
-     [Вставьте план выполнения]
-     
+     ![alt text](image-7.png)
+
      *Объясните результат:*
-     [Ваше объяснение]
+     Был использован автоматически созданный индекс на PK.
 
 14. Выполните поиск по ключу в кластеризованной таблице:
+
      ```sql
      EXPLAIN ANALYZE
      SELECT * FROM t_lookup_clustered WHERE item_key = '0000000455';
      ```
-     
+
      *План выполнения:*
-     [Вставьте план выполнения]
-     
+     ![alt text](image-8.png)
+
      *Объясните результат:*
-     [Ваше объяснение]
+     Аналогично в кластеризованной таблице, тоже был использован авто созданный индекс на PK.
 
 15. Создайте индекс по значению для обычной таблицы:
+
      ```sql
      CREATE INDEX t_lookup_value_idx ON t_lookup(item_value);
      ```
 
 16. Создайте индекс по значению для кластеризованной таблицы:
+
      ```sql
      CREATE INDEX t_lookup_clustered_value_idx 
      ON t_lookup_clustered(item_value);
      ```
 
 17. Выполните поиск по значению в обычной таблице:
+
      ```sql
      EXPLAIN ANALYZE
      SELECT * FROM t_lookup WHERE item_value = 'T_BOOKS';
      ```
-     
+
      *План выполнения:*
-     [Вставьте план выполнения]
-     
+     ![alt text](image-9.png)
+
      *Объясните результат:*
-     [Ваше объяснение]
+     Сработал, созданный нами B-tree индекс без сюрпризов.
 
 18. Выполните поиск по значению в кластеризованной таблице:
+
      ```sql
      EXPLAIN ANALYZE
      SELECT * FROM t_lookup_clustered WHERE item_value = 'T_BOOKS';
      ```
-     
+
      *План выполнения:*
-     [Вставьте план выполнения]
-     
+     ![alt text](image-10.png)
+
      *Объясните результат:*
-     [Ваше объяснение]
+     Также сработал B-tree индекс.
 
 19. Сравните производительность поиска по значению в обычной и кластеризованной таблицах:
-     
+
      *Сравнение:*
-     [Ваше сравнение]
+     На небольших и довольно рандомных данных разница незаметна. Кластеризация вообще служит для упорядочиваня данных на диске и сокращения использования ORDER BY. На хабре писали:
+
+    > Кластеризованные таблицы подойдут, если ваши данные — это таблицы-справочники (ну или SCD — Slowly Changing Dimension), например адресная система. Этот тип таблиц удобен в случае, если вы загружаете новые данные достаточно редко, например, раз в месяц. Если таблица очень часто меняется и подвержена INSERT-, UPDATE- и DELETE-операциям, кластеризовать её придётся постоянно, а это не очень удобно и вообще критично. Цель кластеризации — избегать ненужных ORDER BY в постоянных запросах к таблице по кластеризованному полю или полям.
